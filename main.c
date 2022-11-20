@@ -10,6 +10,11 @@
 #define G 0.00000000006672
 
 typedef struct {
+    double view_x;
+    double scale_x;
+    double view_y;
+    double scale_y;
+
     size_t length;
     double *vel_x;
     double *vel_y;
@@ -47,6 +52,12 @@ void add_body(
     data->radiuses[i] = radius;
 }
 
+void get_screen_coords(
+    const WorldData * const data, const double ix, const double iy, int * const ox, int * const oy) {
+    *ox = (int)floor((ix - data->view_x) * data->scale_x);
+    *oy = (int)floor((iy - data->view_y) * data->scale_y);
+}
+
 void swap_remove_body(WorldData *data, size_t i) {
     size_t j = data->length - 1;
     data->vel_x[i] = data->vel_x[j];
@@ -60,7 +71,11 @@ void swap_remove_body(WorldData *data, size_t i) {
     data->length--;
 }
 
-void draw_sphere(SDL_Renderer *renderer, double x, double y, double radius) {
+void draw_sphere(
+    SDL_Renderer * const renderer,
+    const WorldData * const data,
+    const double x, const double y, const double radius
+) {
     double radius2 = radius*radius;
     for (double dx = x - radius; dx <= x + radius; dx++) {
         for (double dy = y - radius; dy <= y + radius; dy++) {
@@ -76,7 +91,14 @@ void draw_sphere(SDL_Renderer *renderer, double x, double y, double radius) {
             if (dist <= radius2) {
                 int color_2 = floor(color * 255);
                 SDL_SetRenderDrawColor(renderer, color_2, color_2, color_2, 255);
-                SDL_RenderDrawPoint(renderer, dx, dy);
+                
+                int idx, idy;
+                get_screen_coords(data, dx, dy, &idx, &idy);
+                SDL_RenderDrawPoint(
+                    renderer,
+                    idx,
+                    idy
+                );
             }
         }
     }
@@ -96,16 +118,18 @@ void update(WorldData * const data, double dt) {
                 printf("Collision %zu %zu!\n", i, j);
                 if (data->masses[j] > data->masses[i]) {
                     data->masses[j] += data->masses[i];
-                    data->vel_x[j] += data->vel_x[i];
-                    data->vel_y[j] += data->vel_y[i];
+                    float mass_factor = data->masses[i] / data->masses[j];
+                    data->vel_x[j] += data->vel_x[i] * mass_factor;
+                    data->vel_y[j] += data->vel_y[i] * mass_factor;
                     swap_remove_body(data, i);
                     i--;
                     return;
                 }
                 else {
                     data->masses[i] += data->masses[j];
-                    data->vel_x[i] += data->vel_x[j];
-                    data->vel_y[i] += data->vel_y[j];
+                    float mass_factor = data->masses[j] / data->masses[i];
+                    data->vel_x[i] += data->vel_x[j] * mass_factor;
+                    data->vel_y[i] += data->vel_y[j] * mass_factor;
                     swap_remove_body(data, j);
                     j--;
                     return;
@@ -117,7 +141,7 @@ void update(WorldData * const data, double dt) {
             double y_dir = diffY / dist;
             
             double i_f = G * data->masses[j] / dist2;
-            double j_f = G * data->masses[j] / dist2;
+            double j_f = G * data->masses[i] / dist2;
             
             data->vel_x[i] += x_dir * i_f * dt;
             data->vel_y[i] += y_dir * i_f * dt;
@@ -141,11 +165,22 @@ void draw(SDL_Renderer * const renderer, const WorldData * const data) {
     
     for (size_t i = 0; i < data->length; i++) {
         draw_sphere(
-            renderer,
+            renderer, data,
             data->pos_x[i], data->pos_y[i],
             data->radiuses[i]
         );
     }
+}
+
+void update_viewport(
+    WorldData * const data,
+    int previous_width, int previous_height,
+    int new_width, int new_height
+) {
+    double cx = data->view_x + ((double)previous_width  / 2);
+    double cy = data->view_y + ((double)previous_height / 2);
+    data->view_x = cx - ((double)new_width  / 2);
+    data->view_y = cy - ((double)new_height / 2);
 }
 
 int main(int argc, char *args[]) {
@@ -167,9 +202,20 @@ int main(int argc, char *args[]) {
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
     
-    WorldData data = { 0 };
-    add_body(&data, 200, 200, 20, 20, 10000000000000000, 40);
-    add_body(&data, 200, 500, 20, 20, 10000000000000000, 40);
+    size_t time_scale = 2;
+    
+    WorldData data = {
+        .scale_x = 1.,
+        .scale_y = 1.,
+        .length = 0
+    };
+    add_body(&data, 0, 0, 0, 0, 300000000000000000, 30);
+    add_body(&data, 0, 200, 300, 0, 10000, 20);
+    add_body(&data, 0, 400, 200, 0, 10000, 20);
+    
+    int window_width, window_height;
+    SDL_GetWindowSize(window, &window_width, &window_height);
+    update_viewport(&data, 0, 0, window_width, window_height);
     
     bool running = true;
     Uint32 last_frame_ticks = SDL_GetTicks();
@@ -186,12 +232,28 @@ int main(int argc, char *args[]) {
                 case SDL_QUIT:
                     running = false;
                     break;
+                case SDL_WINDOWEVENT:
+                    switch (event.window.event) {
+                        case SDL_WINDOWEVENT_RESIZED: {
+                            update_viewport(
+                                &data, 
+                                window_width, window_height,
+                                event.window.data1, event.window.data2
+                            );
+                            window_width = event.window.data1;
+                            window_height = event.window.data2;
+                            break;
+                        }
+                    }
+                    break;
             }
             
             found_event = SDL_PollEvent(&event);
         }
 
-        update(&data, (double)(SDL_GetTicks() - last_frame_ticks) / 1000);
+        double dt = (double)(SDL_GetTicks() - last_frame_ticks) / 1000;
+        for (size_t i = 0; i < time_scale; i++)
+            update(&data, dt);
         draw(renderer, &data);
         SDL_RenderPresent(renderer);
 
