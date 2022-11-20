@@ -5,7 +5,7 @@
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
-#define SPHERE_FALLOUT_START 250
+#define SPHERE_FALLOUT_START 16
 
 #define G 0.00000000006672
 
@@ -53,9 +53,21 @@ void add_body(
 }
 
 void get_screen_coords(
-    const WorldData * const data, const double ix, const double iy, int * const ox, int * const oy) {
+    const WorldData * const data,
+    const double ix, const double iy,
+    int * const ox, int * const oy
+) {
     *ox = (int)floor((ix - data->view_x) * data->scale_x);
     *oy = (int)floor((iy - data->view_y) * data->scale_y);
+}
+
+void get_world_coords(
+    const WorldData * const data,
+    const int ix, const int iy,
+    double * const ox, double * const oy
+) {
+    *ox = ((double)ix / data->scale_x) + data->view_x;
+    *oy = ((double)iy / data->scale_y) + data->view_y;
 }
 
 void swap_remove_body(WorldData *data, size_t i) {
@@ -74,30 +86,35 @@ void swap_remove_body(WorldData *data, size_t i) {
 void draw_sphere(
     SDL_Renderer * const renderer,
     const WorldData * const data,
-    const double x, const double y, const double radius
+    const double wx, const double wy, const double wradius
 ) {
-    double radius2 = radius*radius;
-    for (double dx = x - radius; dx <= x + radius; dx++) {
-        for (double dy = y - radius; dy <= y + radius; dy++) {
-            double dist = (dx-x)*(dx-x) + (dy-y)*(dy-y);
+    int sx, sy;
+    get_screen_coords(data, wx, wy, &sx, &sy);
+    int sradius_x = wradius / data->scale_x;
+    int sradius_y = wradius / data->scale_y;
+
+    double wradius2 = wradius*wradius;
+    double sradius2 = sradius_x*sradius_y;
+
+    for (int dsx = sx - sradius_x; dsx <= sx + sradius_x; dsx++) {
+        for (int dsy = sy - sradius_y; dsy <= sy + sradius_y; dsy++) {
+            double sdist2 = (dsx-sx)*(dsx-sx) + (dsy-sy)*(dsy-sy);
             
-            double fallout_dist = (dist - (radius2 - SPHERE_FALLOUT_START)) / SPHERE_FALLOUT_START;
+            double fallout_dist = (sdist2 - (sradius2 - SPHERE_FALLOUT_START)) / SPHERE_FALLOUT_START;
             if (fallout_dist > 1)
                 fallout_dist = 1.;
             if (fallout_dist < 0)
                 fallout_dist = 0.;
             double color = 1. - fallout_dist;
 
-            if (dist <= radius2) {
+            if (sdist2 <= sradius2) {
                 int color_2 = floor(color * 255);
                 SDL_SetRenderDrawColor(renderer, color_2, color_2, color_2, 255);
                 
-                int idx, idy;
-                get_screen_coords(data, dx, dy, &idx, &idy);
                 SDL_RenderDrawPoint(
                     renderer,
-                    idx,
-                    idy
+                    dsx,
+                    dsy
                 );
             }
         }
@@ -207,6 +224,8 @@ int main(int argc, char *args[]) {
     WorldData data = {
         .scale_x = 1.,
         .scale_y = 1.,
+        .view_x = 0,
+        .view_y = 0,
         .length = 0
     };
     add_body(&data, 0, 0, 0, 0, 300000000000000000, 30);
@@ -232,6 +251,24 @@ int main(int argc, char *args[]) {
                 case SDL_QUIT:
                     running = false;
                     break;
+                case SDL_KEYDOWN: {
+                    int move_size = SDL_GetModState() & KMOD_SHIFT ? 50 : 10;
+                    switch (event.key.keysym.sym) {
+                        case SDLK_h:
+                            data.view_x -= move_size;
+                        break;
+                        case SDLK_l:
+                            data.view_x += move_size;
+                        break;
+                        case SDLK_j:
+                            data.view_y += move_size;
+                        break;
+                        case SDLK_k:
+                            data.view_y -= move_size;
+                        break;
+                    }
+                    break;
+                }
                 case SDL_WINDOWEVENT:
                     switch (event.window.event) {
                         case SDL_WINDOWEVENT_RESIZED: {
@@ -240,7 +277,7 @@ int main(int argc, char *args[]) {
                                 window_width, window_height,
                                 event.window.data1, event.window.data2
                             );
-                            window_width = event.window.data1;
+                            // window_width = event.window.data1;
                             window_height = event.window.data2;
                             break;
                         }
