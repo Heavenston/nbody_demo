@@ -160,6 +160,7 @@ int main(int argc, char *args[]) {
         200, 200,
         SDL_WINDOW_SHOWN
     );
+    SDL_SetWindowResizable(window, true);
     if (window == NULL) {
         fprintf(stderr, "could not create window: %s\n", SDL_GetError());
         return 1;
