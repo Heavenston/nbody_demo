@@ -268,10 +268,10 @@ int main(int argc, char *args[]) {
         .r = 255, .g = 255, .b = 0, .a = 255,
     });
     add_body(&data, 0, 200, 3, 0, 10000, 20, (SDL_Color) {
-        .r = 255, .g = 255, .b = 255, .a = 255,
+        .r = 100, .g = 100, .b = 255, .a = 255,
     });
     add_body(&data, 0, 400, 2, 0, 10000, 20, (SDL_Color) {
-        .r = 255, .g = 255, .b = 255, .a = 255,
+        .r = 255, .g = 100, .b = 100, .a = 255,
     });
     
     int window_width, window_height;
