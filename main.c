@@ -3,31 +3,37 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
+/// Size of the "anti aliased" border of the spheres.
 #define SPHERE_FALLOUT_START 3
 
-#define G 0.00000000006672
+/// The G constant, I think
+#define G 0.0000000000667430
 
 typedef struct {
+    /// The coordinates of the top left corner viewport/camera.
     double  view_x,  view_y;
+    /// Pivot used for rotation (mathematical origin of the scaling)
     double pivot_x, pivot_y;
+    /// The scaling of the camera (2 means the viewport is twice as big as the world)
     double scale_x, scale_y;
 
+    /// Number of bodies in the world.
     size_t length;
-    double *vel_x;
-    double *vel_y;
-    double *pos_x;
-    double *pos_y;
+    double *vel_x, *vel_y;
+    double *pos_x, *pos_y;
     double *masses;
     double *radiuses;
+    SDL_Color *colors;
 } WorldData;
 
+/** Adds a body the the world data by appending elements to the various arrays.
+ */
 void add_body(
     WorldData *data,
     double x, double y,
     double vel_x, double vel_y,
-    double mass, double radius
+    double mass, double radius,
+    SDL_Color color
 ) {
     size_t i = data->length;
     data->length++;
@@ -49,8 +55,13 @@ void add_body(
 
     data->radiuses = realloc(data->radiuses, sizeof(double) * data->length);
     data->radiuses[i] = radius;
+
+    data->colors = realloc(data->colors, sizeof(SDL_Color) * data->length);
+    data->colors[i] = color;
 }
 
+/** Converts world coordinates into screen coordinates.
+ */
 void get_screen_coords(
     const WorldData * const data,
     const double ix, const double iy,
@@ -60,6 +71,8 @@ void get_screen_coords(
     *oy = (iy - data->view_y - data->pivot_y) / data->scale_y + data->pivot_y;
 }
 
+/** Converts screen coordinates into world coordinates.
+ */
 void get_world_coords(
     const WorldData * const data,
     const int ix, const int iy,
@@ -69,6 +82,8 @@ void get_world_coords(
     *ox = ((double)iy - data->pivot_y) * data->scale_y + data->pivot_y + data->view_y;
 }
 
+/** Removes the body at the given index by puting the last elements it its place.
+ */
 void swap_remove_body(WorldData *data, size_t i) {
     size_t j = data->length - 1;
     data->vel_x[i] = data->vel_x[j];
@@ -82,10 +97,13 @@ void swap_remove_body(WorldData *data, size_t i) {
     data->length--;
 }
 
+/** Draw a sphere with the given world coodinates onto the screen.
+ */
 void draw_sphere(
     SDL_Renderer * const renderer,
     const WorldData * const data,
-    const double wx, const double wy, const double wradius
+    const double wx, const double wy, const double wradius,
+    SDL_Color color
 ) {
     int sx, sy;
     get_screen_coords(data, wx, wy, &sx, &sy);
@@ -105,11 +123,10 @@ void draw_sphere(
                 fallout_dist = 1.;
             if (fallout_dist < 0)
                 fallout_dist = 0.;
-            double color = 1. - fallout_dist;
 
             if (sdist2 <= sradius2) {
-                int color_2 = floor(color * 255);
-                SDL_SetRenderDrawColor(renderer, color_2, color_2, color_2, 255);
+                int alpha = (int)floor(255. * (1. - fallout_dist));
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
                 
                 SDL_RenderDrawPoint(
                     renderer,
@@ -121,7 +138,9 @@ void draw_sphere(
     }
 }
 
-void update(WorldData * const data, double dt) {
+/** Does a physic step of the given time step.
+ */
+void update(WorldData * const data, const double dt) {
     for (size_t i = 1; i < data->length; i++) {
         for (size_t j = 0; j < i; j++) {
             double diffX = data->pos_x[j] - data->pos_x[i];
@@ -176,6 +195,8 @@ void update(WorldData * const data, double dt) {
     }
 }
 
+/** Draws all bodies from the world into the screen.
+ */
 void draw(SDL_Renderer * const renderer, const WorldData * const data) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -184,11 +205,15 @@ void draw(SDL_Renderer * const renderer, const WorldData * const data) {
         draw_sphere(
             renderer, data,
             data->pos_x[i], data->pos_y[i],
-            data->radiuses[i]
+            data->radiuses[i],
+            data->colors[i]
         );
     }
 }
 
+/** Used to update the position of the "camera" when the window resizes, also resets
+ *  its position if the previous width or height is equal to 0.
+ */
 void update_viewport(
     WorldData * const data,
     int previous_width, int previous_height,
@@ -217,8 +242,9 @@ int main(int argc, char *args[]) {
     SDL_Window *window = SDL_CreateWindow(
         "hello_sdl2",
         SDL_WINDOWPOS_UNDEFINED,
-        SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH,
-        SCREEN_HEIGHT, SDL_WINDOW_SHOWN
+        SDL_WINDOWPOS_UNDEFINED,
+        200, 200,
+        SDL_WINDOW_SHOWN
     );
     if (window == NULL) {
         fprintf(stderr, "could not create window: %s\n", SDL_GetError());
@@ -226,6 +252,7 @@ int main(int argc, char *args[]) {
     }
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, 0);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     
     size_t time_scale = 2;
     
@@ -236,9 +263,16 @@ int main(int argc, char *args[]) {
         .view_y = 0,
         .length = 0
     };
-    add_body(&data, 0, 0, 0, 0, 300000000000000000, 30);
-    add_body(&data, 0, 200, 300, 0, 10000, 20);
-    add_body(&data, 0, 400, 200, 0, 10000, 20);
+    
+    add_body(&data, 0, 0, 0, 0,   30000000000000, 30, (SDL_Color) {
+        .r = 255, .g = 255, .b = 0, .a = 255,
+    });
+    add_body(&data, 0, 200, 3, 0, 10000, 20, (SDL_Color) {
+        .r = 255, .g = 255, .b = 255, .a = 255,
+    });
+    add_body(&data, 0, 400, 2, 0, 10000, 20, (SDL_Color) {
+        .r = 255, .g = 255, .b = 255, .a = 255,
+    });
     
     int window_width, window_height;
     SDL_GetWindowSize(window, &window_width, &window_height);
@@ -262,7 +296,7 @@ int main(int argc, char *args[]) {
                 case SDL_KEYDOWN: {
                     double move_step = SDL_GetModState() & KMOD_SHIFT ? 50 : 10;
                     move_step *= data.scale_x;
-                    double scale_step = SDL_GetModState() & KMOD_SHIFT ? 2 : 1.5;
+                    double scale_step = SDL_GetModState() & KMOD_SHIFT ? 1.5 : 1.1;
                     switch (event.key.keysym.sym) {
                         case SDLK_h:
                             data.view_x -= move_step;
@@ -317,6 +351,7 @@ int main(int argc, char *args[]) {
         }
 
         double dt = 0.005;
+        dt *= 10;
         for (size_t i = 0; i < time_scale; i++)
             update(&data, dt);
         draw(renderer, &data);
