@@ -192,7 +192,7 @@ int main(int argc, char *args[]) {
     SDL_GetWindowSize(window, &window_width, &window_height);
     update_viewport(&data, 0, 0, window_width, window_height);
     
-    double click_start_x, click_start_y;
+    double click_start_x = NAN, click_start_y = NAN;
     
     bool running = true;
     Uint32 last_frame_ticks = SDL_GetTicks();
@@ -260,6 +260,8 @@ int main(int argc, char *args[]) {
                         10000000000000, 20, (SDL_Color) {
                             .r = 255, .g = 255, .b = 255, .a = 255,
                         });
+                    click_start_x = NAN,
+                    click_start_y = NAN;
                     break;
                 }
                 case SDL_WINDOWEVENT:
@@ -286,6 +288,14 @@ int main(int argc, char *args[]) {
         for (size_t i = 0; i < time_scale; i++)
             update(&data, dt);
         draw(renderer, &data);
+        if (!isnan(click_start_x)) {
+            int msx, msy;
+            SDL_GetMouseState(&msx, &msy);
+            int start_msx, start_msy;
+            get_screen_coords(&data, click_start_x, click_start_y, &start_msx, &start_msy);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+            SDL_RenderDrawLine(renderer, msx, msy, start_msx, start_msy);
+        }
         SDL_RenderPresent(renderer);
 
         last_frame_ticks = SDL_GetTicks();
