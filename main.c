@@ -248,20 +248,37 @@ int main(int argc, char *args[]) {
                     break;
                 }
                 case SDL_MOUSEBUTTONDOWN: {
-                    get_world_coords(&data, event.button.x, event.button.y, &click_start_x, &click_start_y);
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        get_world_coords(&data, event.button.x, event.button.y, &click_start_x, &click_start_y);
+                    }
+                    else if (event.button.button == SDL_BUTTON_RIGHT) {
+                        double click_x, click_y;
+                        get_world_coords(&data, event.button.x, event.button.y, &click_x, &click_y);
+                        for (size_t i = 0; i < data.length; i++) {
+                            double x_dist = data.pos_x[i] - click_x;
+                            double y_dist = data.pos_y[i] - click_y;
+                            double dist2 = x_dist*x_dist + y_dist*y_dist;
+                            if (dist2 < data.radiuses[i]*data.radiuses[i]) {
+                                swap_remove_body(&data, i);
+                                i--;
+                            }
+                        }
+                    }
                     break;
                 }
                 case SDL_MOUSEBUTTONUP: {
-                    double click_x, click_y;
-                    get_world_coords(&data, event.button.x, event.button.y, &click_x, &click_y);
-                    add_body(&data, click_start_x, click_start_y,
-                        (click_start_x - click_x) / 10,
-                        (click_start_y - click_y) / 10,
-                        10000000000000, 20, (SDL_Color) {
-                            .r = 255, .g = 255, .b = 255, .a = 255,
-                        });
-                    click_start_x = NAN,
-                    click_start_y = NAN;
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        double click_x, click_y;
+                        get_world_coords(&data, event.button.x, event.button.y, &click_x, &click_y);
+                        add_body(&data, click_start_x, click_start_y,
+                            (click_start_x - click_x) / 10,
+                            (click_start_y - click_y) / 10,
+                            10000000000000, 20, (SDL_Color) {
+                                .r = 255, .g = 255, .b = 255, .a = 255,
+                            });
+                        click_start_x = NAN,
+                        click_start_y = NAN;
+                    }
                     break;
                 }
                 case SDL_WINDOWEVENT:
