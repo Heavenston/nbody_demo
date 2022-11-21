@@ -24,9 +24,8 @@ void draw_sphere(
     int sradius_x = wradius / data->scale_x;
     int sradius_y = wradius / data->scale_y;
 
-    double wradius2 = wradius*wradius;
     double sradius2 = sradius_x*sradius_y;
-    
+   
     for (int dsx = sx - sradius_x; dsx <= sx + sradius_x; dsx++) {
         for (int dsy = sy - sradius_y; dsy <= sy + sradius_y; dsy++) {
             double sdist2 = (dsx-sx)*(dsx-sx) + (dsy-sy)*(dsy-sy);
@@ -81,7 +80,7 @@ void update(WorldData * const data, const double dt) {
                     data->vel_x[i] += data->vel_x[j] * mass_factor;
                     data->vel_y[i] += data->vel_y[j] * mass_factor;
                     swap_remove_body(data, j);
-                    j--;
+                   j--;
                     return;
                 }
             }
@@ -99,8 +98,6 @@ void update(WorldData * const data, const double dt) {
             data->vel_x[j] -= x_dir * j_f * dt;
             data->vel_y[j] -= y_dir * j_f * dt;
         }
-        
-        skip_main: (void)0;
     }
 
     for (size_t i = 0; i < data->length; i++) {
@@ -147,7 +144,7 @@ void update_viewport(
     data->view_y = cy - ((double)new_height / 2);
 }
 
-int main(int argc, char *args[]) {
+int main() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         fprintf(stderr, "could not initialize sdl2: %s\n", SDL_GetError());
         return 1;
