@@ -192,6 +192,8 @@ int main(int argc, char *args[]) {
     SDL_GetWindowSize(window, &window_width, &window_height);
     update_viewport(&data, 0, 0, window_width, window_height);
     
+    double click_start_x, click_start_y;
+    
     bool running = true;
     Uint32 last_frame_ticks = SDL_GetTicks();
     while (running) {
@@ -243,6 +245,21 @@ int main(int argc, char *args[]) {
                             data.scale_y *= scale_step;
                         break;
                     }
+                    break;
+                }
+                case SDL_MOUSEBUTTONDOWN: {
+                    get_world_coords(&data, event.button.x, event.button.y, &click_start_x, &click_start_y);
+                    break;
+                }
+                case SDL_MOUSEBUTTONUP: {
+                    double click_x, click_y;
+                    get_world_coords(&data, event.button.x, event.button.y, &click_x, &click_y);
+                    add_body(&data, click_start_x, click_start_y,
+                        (click_start_x - click_x) / 10,
+                        (click_start_y - click_y) / 10,
+                        10000000000000, 20, (SDL_Color) {
+                            .r = 255, .g = 255, .b = 255, .a = 255,
+                        });
                     break;
                 }
                 case SDL_WINDOWEVENT:

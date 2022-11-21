@@ -47,7 +47,7 @@ void get_world_coords(
     double * const ox, double * const oy
 ) {
     *ox = ((double)ix - data->pivot_x) * data->scale_x + data->pivot_x + data->view_x;
-    *ox = ((double)iy - data->pivot_y) * data->scale_y + data->pivot_y + data->view_y;
+    *oy = ((double)iy - data->pivot_y) * data->scale_y + data->pivot_y + data->view_y;
 }
 
 void swap_remove_body(WorldData *data, size_t i) {
@@ -59,6 +59,7 @@ void swap_remove_body(WorldData *data, size_t i) {
 
     data->masses[i] = data->masses[j];
     data->radiuses[i] = data->radiuses[j];
+    data->colors[i] = data->colors[j];
     
     data->length--;
 }

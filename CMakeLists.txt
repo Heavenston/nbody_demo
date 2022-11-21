@@ -3,7 +3,7 @@ project(Gravity)
 
 find_package(SDL2 REQUIRED)
 
-add_executable(gravity main.c)
+add_executable(gravity main.c world_data.c)
 include_directories(gravity ${SDL2_INCLUDE_DIRS})
 target_link_libraries(gravity ${SDL2_LIBRARIES} m)
 
