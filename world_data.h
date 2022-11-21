@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SDL2/SDL.h"
+#include "SDL.h"
 
 typedef struct {
     /// The coordinates of the top left corner viewport/camera.
