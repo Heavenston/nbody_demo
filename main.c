@@ -64,7 +64,7 @@ void update(WorldData * const data, const double dt) {
 
             double dist2 = diffX2 + diffY2;
             
-            if (dist2 < 250) {
+            if (dist2 < 100) {
                 printf("Collision %zu %zu!\n", i, j);
                 if (data->masses[j] > data->masses[i]) {
                     data->masses[j] += data->masses[i];
