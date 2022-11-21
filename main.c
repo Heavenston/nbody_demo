@@ -5,15 +5,14 @@
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
-#define SPHERE_FALLOUT_START 16
+#define SPHERE_FALLOUT_START 3
 
 #define G 0.00000000006672
 
 typedef struct {
-    double view_x;
-    double scale_x;
-    double view_y;
-    double scale_y;
+    double  view_x,  view_y;
+    double pivot_x, pivot_y;
+    double scale_x, scale_y;
 
     size_t length;
     double *vel_x;
@@ -57,8 +56,8 @@ void get_screen_coords(
     const double ix, const double iy,
     int * const ox, int * const oy
 ) {
-    *ox = (int)floor((ix - data->view_x) * data->scale_x);
-    *oy = (int)floor((iy - data->view_y) * data->scale_y);
+    *ox = (ix - data->view_x - data->pivot_x) / data->scale_x + data->pivot_x;
+    *oy = (iy - data->view_y - data->pivot_y) / data->scale_y + data->pivot_y;
 }
 
 void get_world_coords(
@@ -66,8 +65,8 @@ void get_world_coords(
     const int ix, const int iy,
     double * const ox, double * const oy
 ) {
-    *ox = ((double)ix / data->scale_x) + data->view_x;
-    *oy = ((double)iy / data->scale_y) + data->view_y;
+    *ox = ((double)ix - data->pivot_x) * data->scale_x + data->pivot_x + data->view_x;
+    *ox = ((double)iy - data->pivot_y) * data->scale_y + data->pivot_y + data->view_y;
 }
 
 void swap_remove_body(WorldData *data, size_t i) {
@@ -95,12 +94,13 @@ void draw_sphere(
 
     double wradius2 = wradius*wradius;
     double sradius2 = sradius_x*sradius_y;
-
+    
     for (int dsx = sx - sradius_x; dsx <= sx + sradius_x; dsx++) {
         for (int dsy = sy - sradius_y; dsy <= sy + sradius_y; dsy++) {
             double sdist2 = (dsx-sx)*(dsx-sx) + (dsy-sy)*(dsy-sy);
+            double sdist = sqrt(sdist2);
             
-            double fallout_dist = (sdist2 - (sradius2 - SPHERE_FALLOUT_START)) / SPHERE_FALLOUT_START;
+            double fallout_dist = (sdist - (sradius_x - SPHERE_FALLOUT_START)) / SPHERE_FALLOUT_START;
             if (fallout_dist > 1)
                 fallout_dist = 1.;
             if (fallout_dist < 0)
@@ -196,6 +196,14 @@ void update_viewport(
 ) {
     double cx = data->view_x + ((double)previous_width  / 2);
     double cy = data->view_y + ((double)previous_height / 2);
+    if (previous_height == 0 || previous_width == 0) {
+        cx = 0, cy = 0;
+        data->scale_x = 1;
+        data->scale_y = 1;
+    }
+
+    data->pivot_x = ((double)new_width  / 2);
+    data->pivot_y = ((double)new_height  / 2);
     data->view_x = cx - ((double)new_width  / 2);
     data->view_y = cy - ((double)new_height / 2);
 }
@@ -252,19 +260,39 @@ int main(int argc, char *args[]) {
                     running = false;
                     break;
                 case SDL_KEYDOWN: {
-                    int move_size = SDL_GetModState() & KMOD_SHIFT ? 50 : 10;
+                    double move_step = SDL_GetModState() & KMOD_SHIFT ? 50 : 10;
+                    move_step *= data.scale_x;
+                    double scale_step = SDL_GetModState() & KMOD_SHIFT ? 2 : 1.5;
                     switch (event.key.keysym.sym) {
                         case SDLK_h:
-                            data.view_x -= move_size;
+                            data.view_x -= move_step;
                         break;
                         case SDLK_l:
-                            data.view_x += move_size;
+                            data.view_x += move_step;
                         break;
                         case SDLK_j:
-                            data.view_y += move_size;
+                            data.view_y += move_step;
                         break;
                         case SDLK_k:
-                            data.view_y -= move_size;
+                            data.view_y -= move_step;
+                        break;
+                        case SDLK_r:
+                            update_viewport(&data, 0, 0, window_width, window_height);
+                        break;
+                        case SDLK_RIGHT:
+                            time_scale++;
+                        break;
+                        case SDLK_LEFT:
+                            if (time_scale > 1)
+                                time_scale--;
+                        break;
+                        case SDLK_UP:
+                            data.scale_x /= scale_step;
+                            data.scale_y /= scale_step;
+                        break;
+                        case SDLK_DOWN:
+                            data.scale_x *= scale_step;
+                            data.scale_y *= scale_step;
                         break;
                     }
                     break;
@@ -277,7 +305,7 @@ int main(int argc, char *args[]) {
                                 window_width, window_height,
                                 event.window.data1, event.window.data2
                             );
-                            // window_width = event.window.data1;
+                            window_width = event.window.data1;
                             window_height = event.window.data2;
                             break;
                         }
@@ -288,7 +316,7 @@ int main(int argc, char *args[]) {
             found_event = SDL_PollEvent(&event);
         }
 
-        double dt = (double)(SDL_GetTicks() - last_frame_ticks) / 1000;
+        double dt = 0.005;
         for (size_t i = 0; i < time_scale; i++)
             update(&data, dt);
         draw(renderer, &data);
